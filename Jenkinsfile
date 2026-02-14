@@ -9,7 +9,7 @@ pipeline {
 
     stages {
 
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
                 checkout scm
             }
@@ -19,14 +19,6 @@ pipeline {
             steps {
                 dir('terraform') {
                     sh 'terraform init'
-                }
-            }
-        }
-
-        stage('Terraform Validate') {
-            steps {
-                dir('terraform') {
-                    sh 'terraform validate'
                 }
             }
         }
@@ -42,21 +34,23 @@ pipeline {
         stage('Generate Inventory') {
             steps {
                 dir('terraform') {
-                    sh '''
-                    AMAZON_IP=$(terraform output -raw amazon_ip)
-                    UBUNTU_IP=$(terraform output -raw ubuntu_ip)
+                    script {
+                        def amazon_ip = sh(script: "terraform output -raw amazon_ip", returnStdout: true).trim()
+                        def ubuntu_ip = sh(script: "terraform output -raw ubuntu_ip", returnStdout: true).trim()
 
-                    echo "[amazon]" > ../ansible/inventory
-                    echo "$AMAZON_IP ansible_user=ec2-user" >> ../ansible/inventory
-                    echo "" >> ../ansible/inventory
-                    echo "[ubuntu]" >> ../ansible/inventory
-                    echo "$UBUNTU_IP ansible_user=ubuntu" >> ../ansible/inventory
-                    '''
+                        writeFile file: "../ansible/inventory", text: """
+[amazon]
+${amazon_ip} ansible_user=ec2-user
+
+[ubuntu]
+${ubuntu_ip} ansible_user=ubuntu
+"""
+                    }
                 }
             }
         }
 
-        stage('Run Ansible') {
+        stage('Ansible Deploy') {
             steps {
                 dir('ansible') {
                     sh 'ansible-playbook -i inventory configure.yml'
@@ -67,10 +61,10 @@ pipeline {
 
     post {
         success {
-            echo "Deployment Successful 🎉"
+            echo 'Pipeline executed successfully 🎉'
         }
         failure {
-            echo "Deployment Failed ❌"
+            echo 'Pipeline failed ❌'
         }
     }
 }
