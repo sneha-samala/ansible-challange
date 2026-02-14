@@ -2,9 +2,7 @@ pipeline {
     agent any
 
     environment {
-        AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
-        AWS_DEFAULT_REGION    = 'us-east-1'
+        AWS_DEFAULT_REGION = 'us-east-1'
     }
 
     stages {
@@ -26,7 +24,12 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 dir('terraform') {
-                    sh 'terraform apply -auto-approve'
+                    withCredentials([[
+                        $class: 'AmazonWebServicesCredentialsBinding',
+                        credentialsId: 'aws-creds'
+                    ]]) {
+                        sh 'terraform apply -auto-approve'
+                    }
                 }
             }
         }
@@ -61,7 +64,7 @@ ${ubuntu_ip} ansible_user=ubuntu
 
     post {
         success {
-            echo 'Pipeline executed successfully 🎉'
+            echo 'Infrastructure and Configuration deployed successfully ✅'
         }
         failure {
             echo 'Pipeline failed ❌'
