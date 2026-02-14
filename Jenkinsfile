@@ -9,7 +9,7 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
                 checkout scm
             }
@@ -23,6 +23,14 @@ pipeline {
             }
         }
 
+        stage('Terraform Validate') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform validate'
+                }
+            }
+        }
+
         stage('Terraform Apply') {
             steps {
                 dir('terraform') {
@@ -31,12 +39,38 @@ pipeline {
             }
         }
 
-        stage('Ansible Deploy') {
+        stage('Generate Inventory') {
+            steps {
+                dir('terraform') {
+                    sh '''
+                    AMAZON_IP=$(terraform output -raw amazon_ip)
+                    UBUNTU_IP=$(terraform output -raw ubuntu_ip)
+
+                    echo "[amazon]" > ../ansible/inventory
+                    echo "$AMAZON_IP ansible_user=ec2-user" >> ../ansible/inventory
+                    echo "" >> ../ansible/inventory
+                    echo "[ubuntu]" >> ../ansible/inventory
+                    echo "$UBUNTU_IP ansible_user=ubuntu" >> ../ansible/inventory
+                    '''
+                }
+            }
+        }
+
+        stage('Run Ansible') {
             steps {
                 dir('ansible') {
                     sh 'ansible-playbook -i inventory configure.yml'
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo "Deployment Successful 🎉"
+        }
+        failure {
+            echo "Deployment Failed ❌"
         }
     }
 }
