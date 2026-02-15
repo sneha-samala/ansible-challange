@@ -1,19 +1,18 @@
-# ci-pipeline/ansible/site.yml
 ---
-- name: Apply common configuration on all Linux hosts
+- name: Apply common configuration
   hosts: all
   become: yes
-  roles:
-    - common
+  tasks:
+    - import_playbook: playbooks/common.yml
 
-- name: Configure Frontend servers
+- name: Configure frontend servers
   hosts: frontend
   become: yes
-  roles:
-    - frontend
+  tasks:
+    - import_playbook: playbooks/frontend.yml
 
-- name: Configure Backend servers
+- name: Configure backend servers
   hosts: backend
   become: yes
-  roles:
-    - backend
+  tasks:
+    - import_playbook: playbooks/backend.yml
