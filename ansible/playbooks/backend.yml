@@ -10,8 +10,8 @@
 
     - name: Install Netdata
       ansible.builtin.shell: |
-        curl -Ss https://my-netdata.io/kickstart.sh -o /tmp/netdata.sh
-        bash /tmp/netdata.sh --dont-wait
+        curl -L https://my-netdata.io/kickstart.sh -o /tmp/netdata.sh
+        bash /tmp/netdata.sh --dont-wait --non-interactive
       args:
         executable: /bin/bash
       register: netdata_install
