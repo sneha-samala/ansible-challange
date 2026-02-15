@@ -14,6 +14,25 @@ pipeline {
             }
         }
 
+        stage('AWS Configure') {
+            steps {
+                // Use the new aws_cerds credentials
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws_cerds']]) {
+                    sh '''
+                        mkdir -p ~/.aws
+                        echo "[default]" > ~/.aws/credentials
+                        echo "aws_access_key_id=$AWS_ACCESS_KEY_ID" >> ~/.aws/credentials
+                        echo "aws_secret_access_key=$AWS_SECRET_ACCESS_KEY" >> ~/.aws/credentials
+                        echo "[default]" > ~/.aws/config
+                        echo "region=us-east-1" >> ~/.aws/config
+
+                        # Validate AWS connection
+                        aws sts get-caller-identity
+                    '''
+                }
+            }
+        }
+
         stage('Terraform Init') {
             steps {
                 dir('ci-pipeline/terraform') {
@@ -24,15 +43,9 @@ pipeline {
 
         stage('Terraform Apply') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
-                    dir('ci-pipeline/terraform') {
-                        sh '''
-                          terraform apply -auto-approve
-                        '''
-                    }
+                // Terraform will use the AWS credentials configured in previous stage
+                dir('ci-pipeline/terraform') {
+                    sh 'terraform apply -auto-approve'
                 }
             }
         }
