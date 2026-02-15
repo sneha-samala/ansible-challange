@@ -71,6 +71,7 @@ pipeline {
                             }
 
                             sh """
+                                chmod +x inventories/dynamic_inventory.sh
                                 chmod 600 \$SSH_KEY
                                 export ANSIBLE_HOST_KEY_CHECKING=False
 
