@@ -2,20 +2,21 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = 'us-east-1'
+        AWS_DEFAULT_REGION = "us-east-1"
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                checkout scm
+                git url: 'https://github.com/shaikhshahbazz/ansible-project.git',
+                    branch: 'main'
             }
         }
 
         stage('Terraform Init') {
             steps {
-                dir('terraform') {
+                dir('ci-pipeline/terraform') {
                     sh 'terraform init'
                 }
             }
@@ -23,40 +24,55 @@ pipeline {
 
         stage('Terraform Apply') {
             steps {
-                dir('terraform') {
-                    withCredentials([[
-                        $class: 'AmazonWebServicesCredentialsBinding',
-                        credentialsId: 'aws-creds'
-                    ]]) {
-                        sh 'terraform apply -auto-approve'
+                withCredentials([
+                    string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
+                    string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
+                ]) {
+                    dir('ci-pipeline/terraform') {
+                        sh '''
+                          terraform apply -auto-approve
+                        '''
                     }
                 }
             }
         }
 
-        stage('Generate Inventory') {
+        stage('Ansible Configure') {
             steps {
-                dir('terraform') {
-                    script {
-                        def amazon_ip = sh(script: "terraform output -raw amazon_ip", returnStdout: true).trim()
-                        def ubuntu_ip = sh(script: "terraform output -raw ubuntu_ip", returnStdout: true).trim()
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'ssh-private-key',
+                        keyFileVariable: 'SSH_KEY',
+                        usernameVariable: 'SSH_USER'
+                    )
+                ]) {
+                    dir('ci-pipeline/ansible') {
+                        script {
+                            // Fetch backend IP safely from Terraform output
+                            def backend_ip = sh(
+                                script: "terraform -chdir=../terraform output -raw backend_ip || echo ''",
+                                returnStdout: true
+                            ).trim()
 
-                        writeFile file: "../ansible/inventory", text: """
-[amazon]
-${amazon_ip} ansible_user=ec2-user
+                            if (!backend_ip) {
+                                error "❌ Terraform output 'backend_ip' not found! Make sure it's defined in Terraform."
+                            } else {
+                                echo "✅ Backend IP found: ${backend_ip}"
+                            }
 
-[ubuntu]
-${ubuntu_ip} ansible_user=ubuntu
-"""
+                            sh """
+                              chmod 600 \$SSH_KEY
+                              export ANSIBLE_HOST_KEY_CHECKING=False
+
+                              ansible-playbook \
+                                -i inventory \
+                                site.yml \
+                                --user=\$SSH_USER \
+                                --private-key=\$SSH_KEY \
+                                --extra-vars "backend_ip=${backend_ip}"
+                            """
+                        }
                     }
-                }
-            }
-        }
-
-        stage('Ansible Deploy') {
-            steps {
-                dir('ansible') {
-                    sh 'ansible-playbook -i inventory configure.yml'
                 }
             }
         }
@@ -64,10 +80,10 @@ ${ubuntu_ip} ansible_user=ubuntu
 
     post {
         success {
-            echo 'Infrastructure and Configuration deployed successfully ✅'
+            echo '🎉 Pipeline completed successfully without errors!'
         }
         failure {
-            echo 'Pipeline failed ❌'
+            echo '❌ Pipeline failed. Check logs above.'
         }
     }
 }
