@@ -2,15 +2,22 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = "us-east-1"
+        // Replace 'aws-creds' with the ID of your Jenkins AWS credentials
+        AWS_ACCESS_KEY_ID     = credentials('aws-creds')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-creds')
+        AWS_DEFAULT_REGION    = 'us-east-1'
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout SCM') {
             steps {
-                git url: 'https://github.com/shaikhshahbazz/ansible-project.git',
-                    branch: 'main'
+                checkout([$class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/sneha-samala/ansible-challange.git'
+                    ]]
+                ])
             }
         }
 
@@ -22,57 +29,42 @@ pipeline {
             }
         }
 
+        stage('Terraform Validate') {
+            steps {
+                dir('ci-pipeline/terraform') {
+                    sh 'terraform validate'
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                dir('ci-pipeline/terraform') {
+                    sh 'terraform plan -out=tfplan'
+                }
+            }
+        }
+
         stage('Terraform Apply') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'AWS_ACCESS_KEY_ID', variable: 'AWS_ACCESS_KEY_ID'),
-                    string(credentialsId: 'AWS_SECRET_ACCESS_KEY', variable: 'AWS_SECRET_ACCESS_KEY')
-                ]) {
-                    dir('ci-pipeline/terraform') {
-                        sh '''
-                          terraform apply -auto-approve
-                        '''
-                    }
+                dir('ci-pipeline/terraform') {
+                    sh 'terraform apply -auto-approve tfplan'
+                }
+            }
+        }
+
+        stage('Fetch Terraform Output') {
+            steps {
+                dir('ci-pipeline/terraform') {
+                    sh 'terraform output -raw ansible_inventory > ../ansible/inventory.ini'
                 }
             }
         }
 
         stage('Ansible Configure') {
             steps {
-                withCredentials([
-                    sshUserPrivateKey(
-                        credentialsId: 'ssh-private-key',
-                        keyFileVariable: 'SSH_KEY',
-                        usernameVariable: 'SSH_USER'
-                    )
-                ]) {
-                    dir('ci-pipeline/ansible') {
-                        script {
-                            // Fetch backend IP safely from Terraform output
-                            def backend_ip = sh(
-                                script: "terraform -chdir=../terraform output -raw backend_ip || echo ''",
-                                returnStdout: true
-                            ).trim()
-
-                            if (!backend_ip) {
-                                error "❌ Terraform output 'backend_ip' not found! Make sure it's defined in Terraform."
-                            } else {
-                                echo "✅ Backend IP found: ${backend_ip}"
-                            }
-
-                            sh """
-                              chmod 600 \$SSH_KEY
-                              export ANSIBLE_HOST_KEY_CHECKING=False
-
-                              ansible-playbook \
-                                -i inventory \
-                                site.yml \
-                                --user=\$SSH_USER \
-                                --private-key=\$SSH_KEY \
-                                --extra-vars "backend_ip=${backend_ip}"
-                            """
-                        }
-                    }
+                dir('ci-pipeline/ansible') {
+                    sh 'ansible-playbook -i ../ansible/inventory.ini playbook.yml'
                 }
             }
         }
@@ -80,10 +72,10 @@ pipeline {
 
     post {
         success {
-            echo '🎉 Pipeline completed successfully without errors!'
+            echo '✅ Pipeline completed successfully!'
         }
         failure {
-            echo '❌ Pipeline failed. Check logs above.'
+            echo '❌ Pipeline failed. Check console logs.'
         }
     }
 }
