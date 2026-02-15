@@ -74,7 +74,7 @@ pipeline {
                                 chmod 600 \$SSH_KEY
                                 export ANSIBLE_HOST_KEY_CHECKING=False
 
-                                ansible-playbook -i inventory site.yml \
+                                ansible-playbook -i ansible/inventories/dynamic_inventory.sh site.yml \
                                     --user=\$SSH_USER \
                                     --private-key=\$SSH_KEY \
                                     --extra-vars "backend_ip=${backend_ip}"

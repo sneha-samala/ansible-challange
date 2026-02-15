@@ -1,18 +1,5 @@
+# site.yml
 ---
-- name: Apply common configuration
-  hosts: all
-  become: yes
-  tasks:
-    - import_playbook: playbooks/common.yml
-
-- name: Configure frontend servers
-  hosts: frontend
-  become: yes
-  tasks:
-    - import_playbook: playbooks/frontend.yml
-
-- name: Configure backend servers
-  hosts: backend
-  become: yes
-  tasks:
-    - import_playbook: playbooks/backend.yml
+- import_playbook: playbooks/common.yml
+- import_playbook: playbooks/frontend.yml
+- import_playbook: playbooks/backend.yml
