@@ -1,0 +1,22 @@
+---
+- name: Apply common linux configurations
+  hosts: all
+  become: yes
+  tasks:
+    - name: Disable SELinux
+      ansible.builtin.command: setenforce 0
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Permanently disable SELinux
+      ansible.builtin.replace:
+        path: /etc/selinux/config
+        regexp: '^SELINUX=.*'
+        replace: 'SELINUX=disabled'
+      when: ansible_facts['os_family'] == "RedHat"
+
+    - name: Disable firewalld
+      ansible.builtin.service:
+        name: firewalld
+        state: stopped
+        enabled: no
+      when: ansible_facts['os_family'] == "RedHat" or ansible_facts['distribution'] == "Ubuntu"
