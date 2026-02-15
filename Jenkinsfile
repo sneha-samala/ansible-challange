@@ -16,7 +16,6 @@ pipeline {
 
         stage('AWS Configure') {
             steps {
-                // Use the new aws_cerds credentials
                 withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws_cerds']]) {
                     sh '''
                         mkdir -p ~/.aws
@@ -43,7 +42,6 @@ pipeline {
 
         stage('Terraform Apply') {
             steps {
-                // Terraform will use the AWS credentials configured in previous stage
                 dir('terraform') {
                     sh 'terraform apply -auto-approve'
                 }
@@ -59,30 +57,27 @@ pipeline {
                         usernameVariable: 'SSH_USER'
                     )
                 ]) {
-                    dir('ci-pipeline/ansible') {
+                    dir('ansible') {   // fixed path
                         script {
-                            // Fetch backend IP safely from Terraform output
                             def backend_ip = sh(
                                 script: "terraform -chdir=../terraform output -raw backend_ip || echo ''",
                                 returnStdout: true
                             ).trim()
 
                             if (!backend_ip) {
-                                error "❌ Terraform output 'backend_ip' not found! Make sure it's defined in Terraform."
+                                error "❌ Terraform output 'backend_ip' not found!"
                             } else {
                                 echo "✅ Backend IP found: ${backend_ip}"
                             }
 
                             sh """
-                              chmod 600 \$SSH_KEY
-                              export ANSIBLE_HOST_KEY_CHECKING=False
+                                chmod 600 \$SSH_KEY
+                                export ANSIBLE_HOST_KEY_CHECKING=False
 
-                              ansible-playbook \
-                                -i inventory \
-                                site.yml \
-                                --user=\$SSH_USER \
-                                --private-key=\$SSH_KEY \
-                                --extra-vars "backend_ip=${backend_ip}"
+                                ansible-playbook -i inventory site.yml \
+                                    --user=\$SSH_USER \
+                                    --private-key=\$SSH_KEY \
+                                    --extra-vars "backend_ip=${backend_ip}"
                             """
                         }
                     }
