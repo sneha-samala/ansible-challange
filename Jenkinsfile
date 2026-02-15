@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = "us-east-1"
+        AWS_DEFAULT_REGION = "ap-south-1"
     }
 
     stages {
@@ -24,7 +24,7 @@ pipeline {
                         echo "aws_access_key_id=$AWS_ACCESS_KEY_ID" >> ~/.aws/credentials
                         echo "aws_secret_access_key=$AWS_SECRET_ACCESS_KEY" >> ~/.aws/credentials
                         echo "[default]" > ~/.aws/config
-                        echo "region=us-east-1" >> ~/.aws/config
+                        echo "region=ap-south-1" >> ~/.aws/config
 
                         # Validate AWS connection
                         aws sts get-caller-identity
