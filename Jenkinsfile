@@ -35,7 +35,7 @@ pipeline {
 
         stage('Terraform Init') {
             steps {
-                dir('ci-pipeline/terraform') {
+                dir('terraform') {
                     sh 'terraform init'
                 }
             }
@@ -44,7 +44,7 @@ pipeline {
         stage('Terraform Apply') {
             steps {
                 // Terraform will use the AWS credentials configured in previous stage
-                dir('ci-pipeline/terraform') {
+                dir('terraform') {
                     sh 'terraform apply -auto-approve'
                 }
             }
